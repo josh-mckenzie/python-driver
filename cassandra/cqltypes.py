@@ -532,11 +532,21 @@ class CounterColumnType(LongType):
     typename = 'counter'
 
 
-cql_time_formats = (
+cql_timestamp_formats = (
     '%Y-%m-%d %H:%M',
     '%Y-%m-%d %H:%M:%S',
     '%Y-%m-%dT%H:%M',
     '%Y-%m-%dT%H:%M:%S',
+    '%Y-%m-%d'
+)
+
+cql_time_formats = (
+    '%H:%M',
+    '%H:%M:%S',
+    '%H:%M:%S.%f'
+)
+
+cql_date_formats = (
     '%Y-%m-%d'
 )
 
@@ -559,7 +569,7 @@ class DateType(_CassandraType):
             date = date[:-5]
         else:
             offset = -time.timezone
-        for tformat in cql_time_formats:
+        for tformat in cql_timestamp_formats:
             try:
                 tval = time.strptime(date, tformat)
             except ValueError:
@@ -625,6 +635,65 @@ class TimeUUIDType(DateType):
             return timeuuid.bytes
         except AttributeError:
             raise TypeError("Got a non-UUID object for a UUID value")
+
+
+class SimpleDateType(_CassandraType):
+    typename = 'date'
+    millis_per_day = 60L * 60L * 24L
+
+    @classmethod
+    def validate(cls, date):
+        if isinstance(date, basestring):
+            date = cls.interpret_simpledate_string(date)
+        return date
+
+    @staticmethod
+    def interpret_simpledate_string(date):
+        for tformat in cql_date_formats:
+            try:
+                tval = time.strftime(tformat, date)
+            except ValueError:
+                continue
+            return tval
+        else:
+            raise ValueError("can't interpret %r as a date" % (date,))
+
+    @staticmethod
+    def serialize(date, protocol_version):
+        return int32_pack(date)
+
+    @staticmethod
+    def deserialize(byts, protocol_version):
+        return datetime.utcfromtimestamp(int32_unpack(byts) * SimpleDateType.millis_per_day).date()
+
+
+class TimeType(_CassandraType):
+    typename = 'time'
+
+    @classmethod
+    def validate(cls, time):
+        if isinstance(time, basestring):
+            time = cls.interpret_timestring(time)
+        return time
+
+    @staticmethod
+    def interpret_timestring(time):
+        for tformat in cql_time_formats:
+            try:
+                tval = time.strptime(time, tformat)
+            except ValueError:
+                continue
+            return tval
+        else:
+            raise ValueError("can't interpret %r as a time" % (time,))
+
+    @staticmethod
+    def serialize(byts, protocol_version):
+        return int64_pack(bytes)
+
+    @staticmethod
+    def deserialize(byts, protocol_version):
+        return int64_unpack(byts)
 
 
 class UTF8Type(_CassandraType):

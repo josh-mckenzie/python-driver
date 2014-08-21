@@ -121,7 +121,7 @@ class TypeTests(unittest.TestCase):
         """
 
         # Ensure all formats can be parsed, without exception
-        for format in cassandra.cqltypes.cql_time_formats:
+        for format in cassandra.cqltypes.cql_timestamp_formats:
             date_string = str(datetime.datetime.now().strftime(format))
             cassandra.cqltypes.DateType(date_string)
 
