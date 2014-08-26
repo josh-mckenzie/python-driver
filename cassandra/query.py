@@ -466,11 +466,14 @@ class BoundStatement(Statement):
         self.values = []
         for value, col_spec in zip(values, col_meta):
             if value is None:
+                print "value is none, appending"
                 self.values.append(None)
             else:
+                print "col_type is col_spec -1"
                 col_type = col_spec[-1]
 
                 try:
+                    print "col_type to serialize.  col_type: " + str(col_type)
                     self.values.append(col_type.serialize(value, proto_version))
                 except (TypeError, struct.error):
                     col_name = col_spec[2]

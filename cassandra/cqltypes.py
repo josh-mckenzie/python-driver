@@ -37,6 +37,8 @@ import re
 import socket
 import time
 from datetime import datetime
+from datetime import timedelta
+from datetime import date
 from uuid import UUID
 import warnings
 
@@ -46,7 +48,7 @@ from six.moves import range
 from cassandra.marshal import (int8_pack, int8_unpack, uint16_pack, uint16_unpack,
                                int32_pack, int32_unpack, int64_pack, int64_unpack,
                                float_pack, float_unpack, double_pack, double_unpack,
-                               varint_pack, varint_unpack)
+                               time_pack, time_unpack, varint_pack, varint_unpack)
 from cassandra.util import OrderedDict
 
 apache_cassandra_type_prefix = 'org.apache.cassandra.db.marshal.'
@@ -531,7 +533,6 @@ class InetAddressType(_CassandraType):
 class CounterColumnType(LongType):
     typename = 'counter'
 
-
 cql_timestamp_formats = (
     '%Y-%m-%d %H:%M',
     '%Y-%m-%d %H:%M:%S',
@@ -546,10 +547,6 @@ cql_time_formats = (
     '%H:%M:%S.%f'
 )
 
-cql_date_formats = (
-    '%Y-%m-%d'
-)
-
 _have_warned_about_timestamps = False
 
 
@@ -559,11 +556,14 @@ class DateType(_CassandraType):
     @classmethod
     def validate(cls, date):
         if isinstance(date, six.string_types):
+            print "isinstance on DateType"
             date = cls.interpret_datestring(date)
+        print "From validate, returning an item of type: " + str(type(date))
         return date
 
     @staticmethod
     def interpret_datestring(date):
+        print "Inside interpret_datestring call with date: " + str(date)
         if date[-5] in ('+', '-'):
             offset = (int(date[-4:-2]) * 3600 + int(date[-2:]) * 60) * int(date[-5] + '1')
             date = date[:-5]
@@ -571,6 +571,7 @@ class DateType(_CassandraType):
             offset = -time.timezone
         for tformat in cql_timestamp_formats:
             try:
+                print "Checking out datestring with format: " + tformat
                 tval = time.strptime(date, tformat)
             except ValueError:
                 continue
@@ -587,6 +588,7 @@ class DateType(_CassandraType):
 
     @staticmethod
     def serialize(v, protocol_version):
+        print "Serialize call on datetype with v: " + str(v) + " having type: " + str(type(v))
         global _have_warned_about_timestamps
         try:
             converted = calendar.timegm(v.utctimetuple())
@@ -639,7 +641,8 @@ class TimeUUIDType(DateType):
 
 class SimpleDateType(_CassandraType):
     typename = 'date'
-    millis_per_day = 60L * 60L * 24L
+    seconds_per_day = 60 * 60 * 24
+    cql_date_format = "%Y-%m-%d"
 
     @classmethod
     def validate(cls, date):
@@ -649,22 +652,40 @@ class SimpleDateType(_CassandraType):
 
     @staticmethod
     def interpret_simpledate_string(date):
-        for tformat in cql_date_formats:
-            try:
-                tval = time.strftime(tformat, date)
-            except ValueError:
-                continue
-            return tval
-        else:
+        try:
+            tval = time.strptime(date, SimpleDateType.cql_date_format)
+            return calendar.timegm(tval) / SimpleDateType.seconds_per_day
+        except ValueError as e:
             raise ValueError("can't interpret %r as a date" % (date,))
 
     @staticmethod
     def serialize(date, protocol_version):
-        return int32_pack(date)
+        print "Serializing date: " + str(date)
+        val = int32_pack(SimpleDateType.interpret_simpledate_string(date))
+        print "val is: " + str(val)
+        return val
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        return datetime.utcfromtimestamp(int32_unpack(byts) * SimpleDateType.millis_per_day).date()
+        try:
+            # Windows fails w/utcfromtimestamp with negative values
+            unpacked_days = int32_unpack(byts)
+            print "Unpacked days: " + str(unpacked_days)
+            # seconds = unpacked_days * SimpleDateType.seconds_per_day
+            #print "Min possible datetime: " + str(datetime.min)
+            #print "Removing seconds: " + str(seconds)
+            #print "timedelta min: " + str(timedelta.min)
+            #print "timedelta min sec: " + str(timedelta.min * SimpleDateType.seconds_per_day)
+            var = datetime(1970, 1, 1) + timedelta(days=unpacked_days)
+            print "built datetime: " + str(var) + " with type: " + str(type(var))
+            result = date(var.year, var.month, var.day)
+            print "Returning result with value: " + str(result) + " and type: " + str(type(var))
+            return result
+        except Exception as e:
+            import logging
+            logging.exception(e)
+            import sys
+            sys.exit(0)
 
 
 class TimeType(_CassandraType):
@@ -689,11 +710,11 @@ class TimeType(_CassandraType):
 
     @staticmethod
     def serialize(byts, protocol_version):
-        return int64_pack(bytes)
+        return time_pack(byts)
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        return int64_unpack(byts)
+        return time_unpack(byts)
 
 
 class UTF8Type(_CassandraType):
