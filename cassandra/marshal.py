@@ -32,6 +32,7 @@ uint16_pack, uint16_unpack = _make_packer('>H')
 uint8_pack, uint8_unpack = _make_packer('>B')
 float_pack, float_unpack = _make_packer('>f')
 double_pack, double_unpack = _make_packer('>d')
+time_pack, time_unpack = _make_packer('>s')
 
 # Special case for cassandra header
 header_struct = struct.Struct('>BBbB')
