@@ -55,9 +55,11 @@ apache_cassandra_type_prefix = 'org.apache.cassandra.db.marshal.'
 
 if six.PY3:
     _number_types = frozenset((int, float))
+    _time_types = frozenset((int))
     long = int
 else:
     _number_types = frozenset((int, long, float))
+    _time_types = frozenset((int, long))
 
 try:
     from blist import sortedset
@@ -556,14 +558,11 @@ class DateType(_CassandraType):
     @classmethod
     def validate(cls, date):
         if isinstance(date, six.string_types):
-            print "isinstance on DateType"
             date = cls.interpret_datestring(date)
-        print "From validate, returning an item of type: " + str(type(date))
         return date
 
     @staticmethod
     def interpret_datestring(date):
-        print "Inside interpret_datestring call with date: " + str(date)
         if date[-5] in ('+', '-'):
             offset = (int(date[-4:-2]) * 3600 + int(date[-2:]) * 60) * int(date[-5] + '1')
             date = date[:-5]
@@ -571,7 +570,6 @@ class DateType(_CassandraType):
             offset = -time.timezone
         for tformat in cql_timestamp_formats:
             try:
-                print "Checking out datestring with format: " + tformat
                 tval = time.strptime(date, tformat)
             except ValueError:
                 continue
@@ -588,7 +586,6 @@ class DateType(_CassandraType):
 
     @staticmethod
     def serialize(v, protocol_version):
-        print "Serialize call on datetype with v: " + str(v) + " having type: " + str(type(v))
         global _have_warned_about_timestamps
         try:
             converted = calendar.timegm(v.utctimetuple())
@@ -659,41 +656,33 @@ class SimpleDateType(_CassandraType):
             raise ValueError("can't interpret %r as a date" % (date,))
 
     @staticmethod
-    def serialize(date, protocol_version):
-        print "Serializing date: " + str(date)
-        val = int32_pack(SimpleDateType.interpret_simpledate_string(date))
-        print "val is: " + str(val)
-        return val
+    def serialize(val, protocol_version):
+        return int32_pack(SimpleDateType.interpret_simpledate_string(val))
 
     @staticmethod
     def deserialize(byts, protocol_version):
+        unpacked_days = int32_unpack(byts)
         try:
-            # Windows fails w/utcfromtimestamp with negative values
-            unpacked_days = int32_unpack(byts)
-            print "Unpacked days: " + str(unpacked_days)
-            # seconds = unpacked_days * SimpleDateType.seconds_per_day
-            #print "Min possible datetime: " + str(datetime.min)
-            #print "Removing seconds: " + str(seconds)
-            #print "timedelta min: " + str(timedelta.min)
-            #print "timedelta min sec: " + str(timedelta.min * SimpleDateType.seconds_per_day)
+            # use built-in python parsing for 0-0-0 through 9999-12-31
             var = datetime(1970, 1, 1) + timedelta(days=unpacked_days)
-            print "built datetime: " + str(var) + " with type: " + str(type(var))
-            result = date(var.year, var.month, var.day)
-            print "Returning result with value: " + str(result) + " and type: " + str(type(var))
-            return result
+            return date(var.year, var.month, var.day)
         except Exception as e:
-            import logging
-            logging.exception(e)
-            import sys
-            sys.exit(0)
+            print 'Warning!  Cannot format dates < 0-0-0 or > 9999-12-31.  Returning raw days since epoch.'
+            return unpacked_days
 
 
 class TimeType(_CassandraType):
     typename = 'time'
+    ONE_MICRO=1000
+    ONE_MILLI=1000*ONE_MICRO
+    ONE_SECOND=1000*ONE_MILLI
+    ONE_MINUTE=60*ONE_SECOND
+    ONE_HOUR=60*ONE_MINUTE
 
     @classmethod
     def validate(cls, time):
         if isinstance(time, basestring):
+            print "Attempting to validate as TimeType"
             time = cls.interpret_timestring(time)
         return time
 
@@ -709,12 +698,34 @@ class TimeType(_CassandraType):
             raise ValueError("can't interpret %r as a time" % (time,))
 
     @staticmethod
-    def serialize(byts, protocol_version):
-        return time_pack(byts)
+    def serialize(val, protocol_version):
+        nano = 0
+        try:
+            base_time_str = val[0:val.find('.')]
+            base_time = time.strptime(base_time_str, "%H:%M:%S")
+            nano = base_time.tm_hour * TimeType.ONE_HOUR
+            nano += base_time.tm_min * TimeType.ONE_MINUTE
+            nano += base_time.tm_sec * TimeType.ONE_SECOND
+
+            if '.' in val:
+                nano_time_str = val[val.find('.')+1:]
+                # right pad to 9 digits
+                while len(nano_time_str) < 9:
+                    nano_time_str += "0"
+                nano += int(nano_time_str)
+        except AttributeError as e:
+            if type(val) not in _time_types:
+                raise TypeError('TimeType arguments must be a string or whole number')
+            # long values passed in are acceptable too
+            nano = val
+        return int64_pack(nano)
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        return time_unpack(byts)
+        full = int64_unpack(byts)
+        base_time = datetime.utcfromtimestamp(full / TimeType.ONE_SECOND)
+        nano_raw = full % TimeType.ONE_SECOND
+        return str(base_time.time()) + "." + str(nano_raw)
 
 
 class UTF8Type(_CassandraType):
