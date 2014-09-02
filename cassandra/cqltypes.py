@@ -636,10 +636,26 @@ class TimeUUIDType(DateType):
             raise TypeError("Got a non-UUID object for a UUID value")
 
 
+# Wrap return of SimpleDate's deserialize in a class so we can push non ISO-8601 date decisions to client space.
+# Since we support dates from < Integer.min_value and max in java, that's well outside the bounds of the dates
+# natively supported in python and simply returning a datetime object from deserialize would force us to decide what
+# to do with those dates in the driver.
+class SimpleDate():
+    days = 0
+    def __init__(self, val):
+        self.days = val
+
+
+class Time():
+    nanos = 0
+    def __init__(self, val):
+        self.nanos = val
+
+
 class SimpleDateType(_CassandraType):
     typename = 'date'
     seconds_per_day = 60 * 60 * 24
-    cql_date_format = "%Y-%m-%d"
+    date_format = "%Y-%m-%d"
 
     @classmethod
     def validate(cls, date):
@@ -650,7 +666,7 @@ class SimpleDateType(_CassandraType):
     @staticmethod
     def interpret_simpledate_string(date):
         try:
-            tval = time.strptime(date, SimpleDateType.cql_date_format)
+            tval = time.strptime(date, SimpleDateType.date_format)
             return calendar.timegm(tval) / SimpleDateType.seconds_per_day
         except ValueError as e:
             raise ValueError("can't interpret %r as a date" % (date,))
@@ -661,14 +677,7 @@ class SimpleDateType(_CassandraType):
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        unpacked_days = int32_unpack(byts)
-        try:
-            # use built-in python parsing for 0-0-0 through 9999-12-31
-            var = datetime(1970, 1, 1) + timedelta(days=unpacked_days)
-            return date(var.year, var.month, var.day)
-        except Exception as e:
-            print 'Warning!  Cannot format dates < 0-0-0 or > 9999-12-31.  Returning raw days since epoch.'
-            return unpacked_days
+        return SimpleDate(int32_unpack(byts))
 
 
 class TimeType(_CassandraType):
@@ -722,10 +731,7 @@ class TimeType(_CassandraType):
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        full = int64_unpack(byts)
-        base_time = datetime.utcfromtimestamp(full / TimeType.ONE_SECOND)
-        nano_raw = full % TimeType.ONE_SECOND
-        return str(base_time.time()) + "." + str(nano_raw)
+        return Time(int64_unpack(byts))
 
 
 class UTF8Type(_CassandraType):
