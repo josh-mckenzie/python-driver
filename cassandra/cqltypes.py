@@ -573,6 +573,7 @@ class DateType(_CassandraType):
                 tval = time.strptime(date, tformat)
             except ValueError:
                 continue
+            retval = calendar.timegm(tval) + offset
             return calendar.timegm(tval) + offset
         else:
             raise ValueError("can't interpret %r as a date" % (date,))
@@ -674,45 +675,40 @@ class TimeType(_CassandraType):
     ONE_HOUR=60*ONE_MINUTE
 
     @classmethod
-    def validate(cls, time):
-        if isinstance(time, basestring):
-            print "Attempting to validate as TimeType"
-            time = cls.interpret_timestring(time)
+    def validate(cls, val):
+        if isinstance(val, basestring):
+            time = cls.interpret_timestring(val)
         return time
 
     @staticmethod
-    def interpret_timestring(time):
-        for tformat in cql_time_formats:
+    def interpret_timestring(val):
+        try:
+            nano = 0
             try:
-                tval = time.strptime(time, tformat)
-            except ValueError:
-                continue
-            return tval
-        else:
-            raise ValueError("can't interpret %r as a time" % (time,))
+                base_time_str = val[0:val.find('.')]
+                base_time = time.strptime(base_time_str, "%H:%M:%S")
+                nano = base_time.tm_hour * TimeType.ONE_HOUR
+                nano += base_time.tm_min * TimeType.ONE_MINUTE
+                nano += base_time.tm_sec * TimeType.ONE_SECOND
+
+                if '.' in val:
+                    nano_time_str = val[val.find('.')+1:]
+                    # right pad to 9 digits
+                    while len(nano_time_str) < 9:
+                        nano_time_str += "0"
+                    nano += int(nano_time_str)
+            except AttributeError as e:
+                if type(val) not in _time_types:
+                    raise TypeError('TimeType arguments must be a string or whole number')
+                # long values passed in are acceptable too
+                nano = val
+            return nano
+        except ValueError as e:
+            raise ValueError("can't interpret %r as a time" % (val,))
 
     @staticmethod
     def serialize(val, protocol_version):
-        nano = 0
-        try:
-            base_time_str = val[0:val.find('.')]
-            base_time = time.strptime(base_time_str, "%H:%M:%S")
-            nano = base_time.tm_hour * TimeType.ONE_HOUR
-            nano += base_time.tm_min * TimeType.ONE_MINUTE
-            nano += base_time.tm_sec * TimeType.ONE_SECOND
-
-            if '.' in val:
-                nano_time_str = val[val.find('.')+1:]
-                # right pad to 9 digits
-                while len(nano_time_str) < 9:
-                    nano_time_str += "0"
-                nano += int(nano_time_str)
-        except AttributeError as e:
-            if type(val) not in _time_types:
-                raise TypeError('TimeType arguments must be a string or whole number')
-            # long values passed in are acceptable too
-            nano = val
-        return int64_pack(nano)
+        return int64_pack(TimeType.interpret_timestring(val))
 
     @staticmethod
     def deserialize(byts, protocol_version):
