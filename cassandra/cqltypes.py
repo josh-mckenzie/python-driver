@@ -636,22 +636,6 @@ class TimeUUIDType(DateType):
             raise TypeError("Got a non-UUID object for a UUID value")
 
 
-# Wrap return of SimpleDate's deserialize in a class so we can push non ISO-8601 date decisions to client space.
-# Since we support dates from < Integer.min_value and max in java, that's well outside the bounds of the dates
-# natively supported in python and simply returning a datetime object from deserialize would force us to decide what
-# to do with those dates in the driver.
-class SimpleDate():
-    days = 0
-    def __init__(self, val):
-        self.days = val
-
-
-class Time():
-    nanos = 0
-    def __init__(self, val):
-        self.nanos = val
-
-
 class SimpleDateType(_CassandraType):
     typename = 'date'
     seconds_per_day = 60 * 60 * 24
@@ -677,7 +661,8 @@ class SimpleDateType(_CassandraType):
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        return SimpleDate(int32_unpack(byts))
+        Result = namedtuple('SimpleDate', 'value')
+        return Result(value=int32_unpack(byts))
 
 
 class TimeType(_CassandraType):
@@ -727,11 +712,12 @@ class TimeType(_CassandraType):
                 raise TypeError('TimeType arguments must be a string or whole number')
             # long values passed in are acceptable too
             nano = val
-        return int64_pack(nano)
+        return (nano)
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        return Time(int64_unpack(byts))
+        Result = namedtuple('Time', 'value')
+        return Result(value=int64_unpack(byts))
 
 
 class UTF8Type(_CassandraType):
