@@ -712,7 +712,7 @@ class TimeType(_CassandraType):
                 raise TypeError('TimeType arguments must be a string or whole number')
             # long values passed in are acceptable too
             nano = val
-        return (nano)
+        return int64_pack(nano)
 
     @staticmethod
     def deserialize(byts, protocol_version):
