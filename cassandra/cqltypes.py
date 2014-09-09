@@ -48,7 +48,7 @@ from six.moves import range
 from cassandra.marshal import (int8_pack, int8_unpack, uint16_pack, uint16_unpack,
                                int32_pack, int32_unpack, int64_pack, int64_unpack,
                                float_pack, float_unpack, double_pack, double_unpack,
-                               time_pack, time_unpack, varint_pack, varint_unpack)
+                               varint_pack, varint_unpack)
 from cassandra.util import OrderedDict
 
 apache_cassandra_type_prefix = 'org.apache.cassandra.db.marshal.'
