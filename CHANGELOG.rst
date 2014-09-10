@@ -1,10 +1,22 @@
 2.1.1
 =====
-In Progress
+September 11, 2014
 
 Bug Fixes
 ---------
 * Fix NetworkTopologyStrategy.export_for_schema (PYTHON-120)
+* Keep timeout for paged results (PYTHON-150)
+
+Features
+--------
+* Detect triggers and include them in CQL queries generated to recreate
+  the schema (github-189)
+* Support IPv6 addresses (PYTHON-144) (note: basic functionality added; Windows
+  platform not addressed (PYTHON-20))
+
+Other
+-----
+* Add frozen<> type modifier to UDTs and tuples to handle CASSANDRA-7857
 
 2.1.0
 =====
