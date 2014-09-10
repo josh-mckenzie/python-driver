@@ -19,11 +19,14 @@ except ImportError:
     import unittest  # noqa
 
 from binascii import unhexlify
+import calendar
 import datetime
+import time
 import cassandra
 from cassandra.cqltypes import (BooleanType, lookup_casstype_simple, lookup_casstype,
                                 LongType, DecimalType, SetType, cql_typename,
                                 CassandraType, UTF8Type, parse_casstype_args,
+                                SimpleDateType, TimeType,
                                 EmptyValue, _CassandraType, DateType)
 from cassandra.query import named_tuple_factory
 from cassandra.protocol import (write_string, read_longstring, write_stringmap,
@@ -124,6 +127,61 @@ class TypeTests(unittest.TestCase):
         for format in cassandra.cqltypes.cql_timestamp_formats:
             date_string = str(datetime.datetime.now().strftime(format))
             cassandra.cqltypes.DateType(date_string)
+
+    def test_simpledate(self):
+        """
+        Test cassandra.cqltypes.SimpleDateType() construction
+        """
+
+        nd = SimpleDateType('2014-01-01')
+        tval = time.strptime('2014-01-01', SimpleDateType.date_format)
+        manual = calendar.timegm(tval) / SimpleDateType.seconds_per_day
+        self.assertEqual(nd, manual)
+
+        nd = SimpleDateType('0001-01-01')
+        self.assertEqual(nd, 1)
+
+    def test_time(self):
+        """
+        Test cassandra.cqltypes.TimeType() construction
+        """
+
+        one_micro = 1000
+        one_milli = 1000L*one_micro
+        one_second = 1000L*one_milli
+        one_minute = 60L*one_second
+        one_hour = 60L*one_minute
+
+        nd = TimeType('00:00:00.000000001')
+        self.assertEqual(nd, 1)
+        nd = TimeType('00:00:00.000001')
+        self.assertEqual(nd, one_micro)
+        nd = TimeType('00:00:00.001')
+        self.assertEqual(nd, one_milli)
+        nd = TimeType('00:00:01')
+        self.assertEqual(nd, one_second)
+        nd = TimeType('00:01:00')
+        self.assertEqual(nd, one_minute)
+        nd = TimeType('01:00:00')
+        self.assertEqual(nd, one_hour)
+
+        nd = TimeType('23:59:59.1')
+        nd = TimeType('23:59:59.12')
+        nd = TimeType('23:59:59.123')
+        nd = TimeType('23:59:59.1234')
+        nd = TimeType('23:59:59.12345')
+
+        nd = TimeType('23:59:59.123456')
+        self.assertEquals(nd, 23*one_hour + 59*one_minute + 59*one_second + 123*one_milli + 456*one_micro)
+
+        nd = TimeType('23:59:59.1234567')
+        self.assertEquals(nd, 23*one_hour + 59*one_minute + 59*one_second + 123*one_milli + 456*one_micro)
+
+        nd = TimeType('23:59:59.12345678')
+        self.assertEquals(nd, 23*one_hour + 59*one_minute + 59*one_second + 123*one_milli + 456*one_micro + 78)
+
+        nd = TimeType('23:59:59.123456789')
+        self.assertEquals(nd, 23*one_hour + 59*one_minute + 59*one_second + 123*one_milli + 456*one_micro + 789)
 
     def test_cql_typename(self):
         """
