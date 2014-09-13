@@ -676,16 +676,20 @@ class TimeType(_CassandraType):
 
     @classmethod
     def validate(cls, val):
+        print 'validate call on TimeType'
         if isinstance(val, basestring):
             time = cls.interpret_timestring(val)
         return time
 
     @staticmethod
     def interpret_timestring(val):
+        print "interpret_timestring called with value: " + val
         try:
             nano = 0
             try:
-                base_time_str = val[0:val.find('.')]
+                base_time_str = val
+                if '.' in base_time_str:
+                    base_time_str = val[0:val.find('.')]
                 base_time = time.strptime(base_time_str, "%H:%M:%S")
                 nano = base_time.tm_hour * TimeType.ONE_HOUR
                 nano += base_time.tm_min * TimeType.ONE_MINUTE
@@ -697,21 +701,26 @@ class TimeType(_CassandraType):
                     while len(nano_time_str) < 9:
                         nano_time_str += "0"
                     nano += int(nano_time_str)
+
+                print "returning nano: " + str(nano)
             except AttributeError as e:
                 if type(val) not in _time_types:
                     raise TypeError('TimeType arguments must be a string or whole number')
                 # long values passed in are acceptable too
                 nano = val
+                print "exception case.  val is in time_types, returning: " + str(nano)
             return nano
         except ValueError as e:
             raise ValueError("can't interpret %r as a time" % (val,))
 
     @staticmethod
     def serialize(val, protocol_version):
+        print 'serialize call on val: ' + str(val)
         return int64_pack(TimeType.interpret_timestring(val))
 
     @staticmethod
     def deserialize(byts, protocol_version):
+        print 'deserialize call on byts: ' + str(byts)
         Result = namedtuple('Time', 'value')
         return Result(value=int64_unpack(byts))
 
