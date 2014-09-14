@@ -472,18 +472,14 @@ class BoundStatement(Statement):
 
                 try:
                     self.values.append(col_type.serialize(value, proto_version))
-                except Exception as e:
-                    import logging
-                    logging.exception(e)
-                    raise TypeError("BLOWED UP")
-                #except (TypeError, struct.error):
-                #    col_name = col_spec[2]
-                #    expected_type = col_type
-                #    actual_type = type(value)
-#
-#                    message = ('Received an argument of invalid type for column "%s". '
-#                               'Expected: %s, Got: %s' % (col_name, expected_type, actual_type))
-#                    raise TypeError(message)
+                except (TypeError, struct.error):
+                    col_name = col_spec[2]
+                    expected_type = col_type
+                    actual_type = type(value)
+
+                    message = ('Received an argument of invalid type for column "%s". '
+                               'Expected: %s, Got: %s' % (col_name, expected_type, actual_type))
+                    raise TypeError(message)
 
         return self
 

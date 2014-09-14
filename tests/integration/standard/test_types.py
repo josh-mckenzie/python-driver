@@ -298,7 +298,7 @@ class TypeTests(unittest.TestCase):
             s.execute(s.prepare("SELECT c, o, s, l, n FROM mytable WHERE a='a' AND b='b'"), [])[0])
 
         # non-string types shouldn't accept empty strings
-        for col in ('d', 'f', 'g', 'h', 'i', 'k', 'l', 'm', 'n', 'q', 'r', 't', 'u', 'v'):
+        for col in ('d', 'f', 'g', 'h', 'i', 'k', 'l', 'm', 'n', 'q', 'r', 't'):
             query = "INSERT INTO mytable (a, b, %s) VALUES ('a', 'b', %%s)" % (col, )
             try:
                 s.execute(query, [''])
@@ -320,7 +320,7 @@ class TypeTests(unittest.TestCase):
         # insert values for all columns
         values = ['a', 'b', 'a', 1, True, Decimal('1.0'), 0.1, 0.1,
                   "1.2.3.4", 1, ['a'], set([1]), {'a': 1}, 'a',
-                  datetime.now(), uuid4(), uuid1(), 'a', 1]
+                  datetime.now(), uuid4(), uuid1(), 'a', 1, '2014-01-01', '01:02:03.456789012']
         s.execute("""
             INSERT INTO mytable (a, b, c, d, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -334,12 +334,12 @@ class TypeTests(unittest.TestCase):
             """, null_values)
 
         results = s.execute("""
-            SELECT c, d, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t FROM mytable
+            SELECT c, d, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v FROM mytable
             """)
         self.assertEqual([], [(name, val) for (name, val) in results[0].items() if val is not None])
 
         prepared = s.prepare("""
-            SELECT c, d, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t FROM mytable
+            SELECT c, d, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v FROM mytable
             """)
         results = s.execute(prepared.bind(()))
         self.assertEqual([], [(name, val) for (name, val) in results[0].items() if val is not None])

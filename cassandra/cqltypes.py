@@ -37,8 +37,6 @@ import re
 import socket
 import time
 from datetime import datetime
-from datetime import timedelta
-from datetime import date
 from uuid import UUID
 import warnings
 
@@ -48,7 +46,7 @@ from six.moves import range
 from cassandra.marshal import (int8_pack, int8_unpack, uint16_pack, uint16_unpack,
                                int32_pack, int32_unpack, int64_pack, int64_unpack,
                                float_pack, float_unpack, double_pack, double_unpack,
-                               time_pack, time_unpack, varint_pack, varint_unpack)
+                               varint_pack, varint_unpack)
 from cassandra.util import OrderedDict
 
 apache_cassandra_type_prefix = 'org.apache.cassandra.db.marshal.'
@@ -543,12 +541,6 @@ cql_timestamp_formats = (
     '%Y-%m-%d'
 )
 
-cql_time_formats = (
-    '%H:%M',
-    '%H:%M:%S',
-    '%H:%M:%S.%f'
-)
-
 _have_warned_about_timestamps = False
 
 
@@ -573,7 +565,6 @@ class DateType(_CassandraType):
                 tval = time.strptime(date, tformat)
             except ValueError:
                 continue
-            retval = calendar.timegm(tval) + offset
             return calendar.timegm(tval) + offset
         else:
             raise ValueError("can't interpret %r as a date" % (date,))
@@ -702,25 +693,21 @@ class TimeType(_CassandraType):
                         nano_time_str += "0"
                     nano += int(nano_time_str)
 
-                print "returning nano: " + str(nano)
             except AttributeError as e:
                 if type(val) not in _time_types:
                     raise TypeError('TimeType arguments must be a string or whole number')
-                # long values passed in are acceptable too
+                # long / int values passed in are acceptable too
                 nano = val
-                print "exception case.  val is in time_types, returning: " + str(nano)
             return nano
         except ValueError as e:
             raise ValueError("can't interpret %r as a time" % (val,))
 
     @staticmethod
     def serialize(val, protocol_version):
-        print 'serialize call on val: ' + str(val)
         return int64_pack(TimeType.interpret_timestring(val))
 
     @staticmethod
     def deserialize(byts, protocol_version):
-        print 'deserialize call on byts: ' + str(byts)
         Result = namedtuple('Time', 'value')
         return Result(value=int64_unpack(byts))
 
